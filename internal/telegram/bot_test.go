@@ -22,6 +22,34 @@ func (c *stubAIClient) AnswerQuestion(_ context.Context, request ai.QuestionRequ
 	return c.answer, c.err
 }
 
+type failingProfileStore struct{}
+
+func (s failingProfileStore) Save(context.Context, domainprofile.BirthProfile) error {
+	return nil
+}
+
+func (s failingProfileStore) Get(context.Context, int64) (domainprofile.BirthProfile, bool, error) {
+	return domainprofile.BirthProfile{}, false, errors.New("store unavailable")
+}
+
+type disappearingProfileStore struct {
+	profile domainprofile.BirthProfile
+	calls   int
+}
+
+func (s *disappearingProfileStore) Save(_ context.Context, birthProfile domainprofile.BirthProfile) error {
+	s.profile = birthProfile
+	return nil
+}
+
+func (s *disappearingProfileStore) Get(context.Context, int64) (domainprofile.BirthProfile, bool, error) {
+	s.calls++
+	if s.calls == 1 {
+		return s.profile, true, nil
+	}
+	return domainprofile.BirthProfile{}, false, nil
+}
+
 func TestServiceRoutesCommandsThroughActiveProfileFlow(t *testing.T) {
 	service := &Service{
 		profiles: newProfileManager(domainprofile.NewMemoryStore()),
@@ -273,5 +301,54 @@ func TestServiceCancelStopsActiveAskFlow(t *testing.T) {
 	got = service.replyForText(context.Background(), 42, "Что важно сегодня?")
 	if got != HelpText {
 		t.Fatalf("replyForText(question after cancel) = %q, want HelpText", got)
+	}
+}
+
+func TestServiceAskClearsSessionWhenProfileGetFails(t *testing.T) {
+	service := &Service{
+		profiles: newProfileManager(failingProfileStore{}),
+		asks:     newAskManager(nil),
+	}
+	userID := int64(42)
+	service.asks.start(userID)
+
+	got := service.replyForText(context.Background(), userID, "Что важно сегодня?")
+	if !strings.Contains(got, "Не смог загрузить профиль") {
+		t.Fatalf("replyForText(question) = %q, want profile load error", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "Ещё вопрос")
+	if got != HelpText {
+		t.Fatalf("replyForText(after failure) = %q, want HelpText after cleared session", got)
+	}
+}
+
+func TestServiceAskClearsSessionWhenProfileDisappears(t *testing.T) {
+	store := &disappearingProfileStore{
+		profile: domainprofile.BirthProfile{
+			UserID:    42,
+			BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+			City:      "Москва",
+		},
+	}
+	service := &Service{
+		profiles: newProfileManager(store),
+		asks:     newAskManager(nil),
+	}
+	userID := int64(42)
+
+	got := service.replyForText(context.Background(), userID, "/ask")
+	if !strings.Contains(got, "Задай вопрос AI-астрологу") {
+		t.Fatalf("replyForText(/ask) = %q, want question prompt", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "Что важно сегодня?")
+	if !strings.Contains(got, "Сначала заполни анкету рождения через /profile") {
+		t.Fatalf("replyForText(question) = %q, want missing profile prompt", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "Ещё вопрос")
+	if got != HelpText {
+		t.Fatalf("replyForText(after missing profile) = %q, want HelpText after cleared session", got)
 	}
 }

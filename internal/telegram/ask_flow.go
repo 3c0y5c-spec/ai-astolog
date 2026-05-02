@@ -51,6 +51,13 @@ func (m *askManager) active(userID int64) bool {
 	return ok
 }
 
+func (m *askManager) clear(userID int64) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	delete(m.sessions, userID)
+}
+
 func (m *askManager) handle(ctx context.Context, userID int64, birthProfile domainprofile.BirthProfile, text string) (string, bool) {
 	m.mu.Lock()
 	_, ok := m.sessions[userID]

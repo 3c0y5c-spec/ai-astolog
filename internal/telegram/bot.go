@@ -159,9 +159,11 @@ func (s *Service) askReply(ctx context.Context, userID int64, text string) (stri
 
 	birthProfile, ok, err := s.profiles.get(ctx, userID)
 	if err != nil {
+		s.asks.clear(userID)
 		return "Не смог загрузить профиль. Попробуй /ask ещё раз.", true
 	}
 	if !ok {
+		s.asks.clear(userID)
 		return "Сначала заполни анкету рождения через /profile, чтобы задать вопрос AI-астрологу.", true
 	}
 
