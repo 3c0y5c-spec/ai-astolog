@@ -46,11 +46,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 }
 
 func handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	data, err := json.Marshal(map[string]string{"status": "ok"})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(append(data, '\n'))
 }
