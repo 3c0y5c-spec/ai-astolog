@@ -6,7 +6,7 @@ func TestReplyForCommand(t *testing.T) {
 	tests := map[string]string{
 		"/start":   StartText,
 		"/help":    HelpText,
-		"/profile": ComingSoonText,
+		"/profile": ProfileStartText,
 		"/chart":   ComingSoonText,
 		"/daily":   ComingSoonText,
 		"/ask":     ComingSoonText,

@@ -4,17 +4,26 @@ import (
 	"context"
 	"log/slog"
 
+	domainprofile "github.com/3c0y5c-spec/ai-astolog/internal/domain/profile"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 )
 
 type Service struct {
-	bot    *bot.Bot
-	logger *slog.Logger
+	bot      *bot.Bot
+	logger   *slog.Logger
+	profiles *profileManager
 }
 
 func New(token string, logger *slog.Logger) (*Service, error) {
-	service := &Service{logger: logger}
+	return NewWithProfileStore(token, logger, domainprofile.NewMemoryStore())
+}
+
+func NewWithProfileStore(token string, logger *slog.Logger, store domainprofile.Store) (*Service, error) {
+	service := &Service{
+		logger:   logger,
+		profiles: newProfileManager(store),
+	}
 
 	b, err := bot.New(token, bot.WithDefaultHandler(service.handleMessage))
 	if err != nil {
@@ -36,6 +45,7 @@ func (s *Service) registerHandlers() {
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/profile", bot.MatchTypeExact, s.handleCommand)
+	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/cancel", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/chart", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/daily", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/ask", bot.MatchTypeExact, s.handleCommand)
@@ -46,7 +56,8 @@ func (s *Service) handleCommand(ctx context.Context, b *bot.Bot, update *models.
 		return
 	}
 
-	s.sendText(ctx, b, update.Message.Chat.ID, ReplyForCommand(update.Message.Text))
+	message := update.Message
+	s.sendText(ctx, b, message.Chat.ID, s.replyForText(ctx, userIDFromMessage(message), message.Text))
 }
 
 func (s *Service) handleMessage(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -54,7 +65,23 @@ func (s *Service) handleMessage(ctx context.Context, b *bot.Bot, update *models.
 		return
 	}
 
-	s.sendText(ctx, b, update.Message.Chat.ID, HelpText)
+	message := update.Message
+	s.sendText(ctx, b, message.Chat.ID, s.replyForText(ctx, userIDFromMessage(message), message.Text))
+}
+
+func (s *Service) replyForText(ctx context.Context, userID int64, text string) string {
+	switch text {
+	case "/profile":
+		return s.profiles.start(userID)
+	case "/cancel":
+		return s.profiles.cancel(userID)
+	}
+
+	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
+		return reply
+	}
+
+	return ReplyForCommand(text)
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
@@ -65,4 +92,11 @@ func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text s
 	if err != nil {
 		s.logger.Error("telegram send message failed", "error", err)
 	}
+}
+
+func userIDFromMessage(message *models.Message) int64 {
+	if message.From != nil {
+		return message.From.ID
+	}
+	return message.Chat.ID
 }
