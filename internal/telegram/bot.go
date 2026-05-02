@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/3c0y5c-spec/ai-astolog/internal/ai"
 	domainastrology "github.com/3c0y5c-spec/ai-astolog/internal/domain/astrology"
 	domainprofile "github.com/3c0y5c-spec/ai-astolog/internal/domain/profile"
 	"github.com/go-telegram/bot"
@@ -14,16 +15,26 @@ type Service struct {
 	bot      *bot.Bot
 	logger   *slog.Logger
 	profiles *profileManager
+	asks     *askManager
 }
 
 func New(token string, logger *slog.Logger) (*Service, error) {
-	return NewWithProfileStore(token, logger, domainprofile.NewMemoryStore())
+	return NewWithDependencies(token, logger, domainprofile.NewMemoryStore(), nil)
 }
 
 func NewWithProfileStore(token string, logger *slog.Logger, store domainprofile.Store) (*Service, error) {
+	return NewWithDependencies(token, logger, store, nil)
+}
+
+func NewWithDependencies(token string, logger *slog.Logger, store domainprofile.Store, aiClient ai.Client) (*Service, error) {
+	if store == nil {
+		store = domainprofile.NewMemoryStore()
+	}
+
 	service := &Service{
 		logger:   logger,
 		profiles: newProfileManager(store),
+		asks:     newAskManager(aiClient),
 	}
 
 	b, err := bot.New(token, bot.WithDefaultHandler(service.handleMessage))
@@ -75,18 +86,31 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 	case "/profile":
 		return s.profiles.start(userID)
 	case "/cancel":
-		return s.profiles.cancel(userID)
+		return s.cancelReply(userID)
 	case "/chart":
 		return s.chartReply(ctx, userID)
 	case "/daily":
 		return s.dailyReply(ctx, userID)
+	case "/ask":
+		return s.askStartReply(ctx, userID)
 	}
 
 	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
 		return reply
 	}
+	if reply, handled := s.askReply(ctx, userID, text); handled {
+		return reply
+	}
 
 	return ReplyForCommand(text)
+}
+
+func (s *Service) cancelReply(userID int64) string {
+	if s.asks != nil && s.asks.cancel(userID) {
+		return "Вопрос отменён. Отправь /ask, чтобы задать новый вопрос."
+	}
+
+	return s.profiles.cancel(userID)
 }
 
 func (s *Service) chartReply(ctx context.Context, userID int64) string {
@@ -111,6 +135,37 @@ func (s *Service) dailyReply(ctx context.Context, userID int64) string {
 	}
 
 	return domainastrology.BuildDailyForecast(birthProfile, s.profiles.currentDate())
+}
+
+func (s *Service) askStartReply(ctx context.Context, userID int64) string {
+	birthProfile, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		return "Не смог загрузить профиль. Попробуй /ask ещё раз."
+	}
+	if !ok {
+		return "Сначала заполни анкету рождения через /profile, чтобы задать вопрос AI-астрологу."
+	}
+	if s.asks == nil {
+		return ai.BuildFallbackAnswer(birthProfile, "общий вопрос")
+	}
+
+	return s.asks.start(userID)
+}
+
+func (s *Service) askReply(ctx context.Context, userID int64, text string) (string, bool) {
+	if s.asks == nil || !s.asks.active(userID) {
+		return "", false
+	}
+
+	birthProfile, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		return "Не смог загрузить профиль. Попробуй /ask ещё раз.", true
+	}
+	if !ok {
+		return "Сначала заполни анкету рождения через /profile, чтобы задать вопрос AI-астрологу.", true
+	}
+
+	return s.asks.handle(ctx, userID, birthProfile, text)
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {

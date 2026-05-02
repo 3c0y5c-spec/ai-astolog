@@ -25,6 +25,9 @@ func TestLoadUsesDefaults(t *testing.T) {
 	if cfg.ShutdownTimeout != 10*time.Second {
 		t.Fatalf("ShutdownTimeout = %s, want 10s", cfg.ShutdownTimeout)
 	}
+	if cfg.AITimeout != 20*time.Second {
+		t.Fatalf("AITimeout = %s, want 20s", cfg.AITimeout)
+	}
 }
 
 func TestLoadRequiresTelegramToken(t *testing.T) {
@@ -57,5 +60,31 @@ func TestLoadReadsShutdownTimeout(t *testing.T) {
 
 	if cfg.ShutdownTimeout != 3*time.Second {
 		t.Fatalf("ShutdownTimeout = %s, want 3s", cfg.ShutdownTimeout)
+	}
+}
+
+func TestLoadReadsAIConfig(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "token")
+	t.Setenv("AI_API_KEY", "ai-key")
+	t.Setenv("AI_BASE_URL", "https://example.test/v1")
+	t.Setenv("AI_MODEL", "custom-model")
+	t.Setenv("AI_TIMEOUT_SECONDS", "7")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.AIAPIKey != "ai-key" {
+		t.Fatalf("AIAPIKey = %q, want configured key", cfg.AIAPIKey)
+	}
+	if cfg.AIBaseURL != "https://example.test/v1" {
+		t.Fatalf("AIBaseURL = %q, want configured base URL", cfg.AIBaseURL)
+	}
+	if cfg.AIModel != "custom-model" {
+		t.Fatalf("AIModel = %q, want configured model", cfg.AIModel)
+	}
+	if cfg.AITimeout != 7*time.Second {
+		t.Fatalf("AITimeout = %s, want 7s", cfg.AITimeout)
 	}
 }

@@ -12,6 +12,7 @@ const (
 	defaultHTTPAddr    = ":8080"
 	defaultBotMode     = "polling"
 	defaultShutdown    = 10 * time.Second
+	defaultAITimeout   = 20 * time.Second
 )
 
 type Config struct {
@@ -22,10 +23,18 @@ type Config struct {
 	PublicWebhookURL string
 	WebhookSecret    string
 	ShutdownTimeout  time.Duration
+	AIAPIKey         string
+	AIBaseURL        string
+	AIModel          string
+	AITimeout        time.Duration
 }
 
 func Load() (Config, error) {
 	shutdownTimeout, err := durationFromEnv("SHUTDOWN_TIMEOUT_SECONDS", defaultShutdown)
+	if err != nil {
+		return Config{}, err
+	}
+	aiTimeout, err := durationFromEnv("AI_TIMEOUT_SECONDS", defaultAITimeout)
 	if err != nil {
 		return Config{}, err
 	}
@@ -38,6 +47,10 @@ func Load() (Config, error) {
 		PublicWebhookURL: os.Getenv("PUBLIC_WEBHOOK_URL"),
 		WebhookSecret:    os.Getenv("WEBHOOK_SECRET"),
 		ShutdownTimeout:  shutdownTimeout,
+		AIAPIKey:         os.Getenv("AI_API_KEY"),
+		AIBaseURL:        os.Getenv("AI_BASE_URL"),
+		AIModel:          os.Getenv("AI_MODEL"),
+		AITimeout:        aiTimeout,
 	}
 
 	if cfg.TelegramBotToken == "" {
