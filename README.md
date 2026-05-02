@@ -7,8 +7,8 @@ AI Astolog is a Telegram bot scaffold for an AI-powered astrology assistant.
 - Telegram onboarding for birth date, birth time, and city.
 - Basic natal chart summary.
 - Daily personalized forecast.
-- Compatibility flow.
 - Free-form AI astrologer questions.
+- Compatibility flow.
 
 The service is intended for entertainment and esoteric self-reflection. It is not medical, legal, financial, or psychological advice.
 
@@ -23,6 +23,7 @@ The service is intended for entertainment and esoteric self-reflection. It is no
 
 ```text
 cmd/bot/                    application entrypoint
+internal/ai/                OpenAI-compatible client and MVP fallback answers
 internal/config/            environment configuration
 internal/domain/astrology/  MVP astrology summaries
 internal/domain/profile/    birth profile model and in-memory storage
@@ -43,6 +44,10 @@ Copy `.env.example` to `.env` for local development and fill in real values.
 | `PUBLIC_WEBHOOK_URL` | webhook only | - | Public webhook base URL |
 | `WEBHOOK_SECRET` | no | - | Secret for Telegram webhook validation |
 | `SHUTDOWN_TIMEOUT_SECONDS` | no | `10` | Graceful shutdown timeout |
+| `AI_API_KEY` | no | - | OpenAI-compatible API key for `/ask`; when empty, `/ask` uses the local MVP fallback |
+| `AI_BASE_URL` | no | `https://api.openai.com/v1` | OpenAI-compatible API base URL |
+| `AI_MODEL` | no | `gpt-4o-mini` | Chat completions model name |
+| `AI_TIMEOUT_SECONDS` | no | `20` | AI provider request timeout |
 
 ## Local development
 
@@ -69,7 +74,7 @@ curl http://localhost:8080/healthz
 - `/cancel` — cancel the active profile onboarding flow
 - `/chart` — basic natal chart MVP summary from the saved birth profile
 - `/daily` — daily MVP forecast from the saved birth profile
-- `/ask` — planned next feature
+- `/ask` — free-form AI astrologer question from the saved birth profile; falls back to local MVP interpretation when `AI_API_KEY` is not configured
 
 ## Checks
 

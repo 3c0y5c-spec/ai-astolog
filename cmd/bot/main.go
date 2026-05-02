@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/3c0y5c-spec/ai-astolog/internal/ai"
 	"github.com/3c0y5c-spec/ai-astolog/internal/config"
 	"github.com/3c0y5c-spec/ai-astolog/internal/httpserver"
 	telegrambot "github.com/3c0y5c-spec/ai-astolog/internal/telegram"
@@ -40,7 +41,14 @@ func main() {
 		return
 	}
 
-	botService, err := telegrambot.New(cfg.TelegramBotToken, logger)
+	aiClient := ai.NewOpenAIClient(ai.Config{
+		APIKey:  cfg.AIAPIKey,
+		BaseURL: cfg.AIBaseURL,
+		Model:   cfg.AIModel,
+		Timeout: cfg.AITimeout,
+	})
+
+	botService, err := telegrambot.NewWithDependencies(cfg.TelegramBotToken, logger, nil, aiClient)
 	if err != nil {
 		logger.Error("telegram bot init failed", "error", err)
 		os.Exit(1)
