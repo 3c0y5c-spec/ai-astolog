@@ -24,6 +24,7 @@ The service is intended for entertainment and esoteric self-reflection. It is no
 ```text
 cmd/bot/                  application entrypoint
 internal/config/          environment configuration
+internal/domain/profile/  birth profile model and in-memory storage
 internal/httpserver/      healthcheck HTTP server
 internal/telegram/        Telegram handlers and reply text
 ```
@@ -55,6 +56,17 @@ Healthcheck:
 ```bash
 curl http://localhost:8080/healthz
 ```
+
+## Bot commands
+
+- `/start` — greeting and command list
+- `/help` — disclaimer and planned features
+- `/profile` — birth profile onboarding:
+  1. birth date in `ДД.ММ.ГГГГ` or `YYYY-MM-DD`
+  2. birth time in `ЧЧ:ММ`, or `нет` if unknown
+  3. birth city text
+- `/cancel` — cancel the active profile onboarding flow
+- `/chart`, `/daily`, `/ask` — planned next features
 
 ## Checks
 

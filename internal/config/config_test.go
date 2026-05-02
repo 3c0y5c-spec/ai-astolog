@@ -28,6 +28,8 @@ func TestLoadUsesDefaults(t *testing.T) {
 }
 
 func TestLoadRequiresTelegramToken(t *testing.T) {
+	t.Setenv("TELEGRAM_BOT_TOKEN", "")
+
 	_, err := Load()
 	if err == nil {
 		t.Fatal("Load() error = nil, want token error")
