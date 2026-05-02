@@ -57,6 +57,10 @@ func (m *profileManager) cancel(userID int64) string {
 	return "Анкета отменена. Отправь /profile, чтобы начать заново."
 }
 
+func (m *profileManager) get(ctx context.Context, userID int64) (domainprofile.BirthProfile, bool, error) {
+	return m.store.Get(ctx, userID)
+}
+
 func (m *profileManager) handle(ctx context.Context, userID int64, text string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

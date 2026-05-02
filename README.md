@@ -22,11 +22,12 @@ The service is intended for entertainment and esoteric self-reflection. It is no
 ## Project layout
 
 ```text
-cmd/bot/                  application entrypoint
-internal/config/          environment configuration
-internal/domain/profile/  birth profile model and in-memory storage
-internal/httpserver/      healthcheck HTTP server
-internal/telegram/        Telegram handlers and reply text
+cmd/bot/                    application entrypoint
+internal/config/            environment configuration
+internal/domain/astrology/  MVP astrology summaries
+internal/domain/profile/    birth profile model and in-memory storage
+internal/httpserver/        healthcheck HTTP server
+internal/telegram/          Telegram handlers and reply text
 ```
 
 ## Configuration
@@ -66,7 +67,8 @@ curl http://localhost:8080/healthz
   2. birth time in `ЧЧ:ММ`, or `нет` if unknown
   3. birth city text
 - `/cancel` — cancel the active profile onboarding flow
-- `/chart`, `/daily`, `/ask` — planned next features
+- `/chart` — basic natal chart MVP summary from the saved birth profile
+- `/daily`, `/ask` — planned next features
 
 ## Checks
 
