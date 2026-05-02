@@ -16,6 +16,7 @@ type Service struct {
 	logger   *slog.Logger
 	profiles *profileManager
 	asks     *askManager
+	compat   *compatibilityManager
 }
 
 func New(token string, logger *slog.Logger) (*Service, error) {
@@ -35,6 +36,7 @@ func NewWithDependencies(token string, logger *slog.Logger, store domainprofile.
 		logger:   logger,
 		profiles: newProfileManager(store),
 		asks:     newAskManager(aiClient),
+		compat:   newCompatibilityManager(),
 	}
 
 	b, err := bot.New(token, bot.WithDefaultHandler(service.handleMessage))
@@ -61,6 +63,7 @@ func (s *Service) registerHandlers() {
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/chart", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/daily", bot.MatchTypeExact, s.handleCommand)
 	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/ask", bot.MatchTypeExact, s.handleCommand)
+	s.bot.RegisterHandler(bot.HandlerTypeMessageText, "/compatibility", bot.MatchTypeExact, s.handleCommand)
 }
 
 func (s *Service) handleCommand(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -82,17 +85,8 @@ func (s *Service) handleMessage(ctx context.Context, b *bot.Bot, update *models.
 }
 
 func (s *Service) replyForText(ctx context.Context, userID int64, text string) string {
-	switch text {
-	case "/profile":
-		return s.profiles.start(userID)
-	case "/cancel":
+	if text == "/cancel" {
 		return s.cancelReply(userID)
-	case "/chart":
-		return s.chartReply(ctx, userID)
-	case "/daily":
-		return s.dailyReply(ctx, userID)
-	case "/ask":
-		return s.askStartReply(ctx, userID)
 	}
 
 	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
@@ -101,6 +95,22 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 	if reply, handled := s.askReply(ctx, userID, text); handled {
 		return reply
 	}
+	if reply, handled := s.compatibilityReply(ctx, userID, text); handled {
+		return reply
+	}
+
+	switch text {
+	case "/profile":
+		return s.profiles.start(userID)
+	case "/chart":
+		return s.chartReply(ctx, userID)
+	case "/daily":
+		return s.dailyReply(ctx, userID)
+	case "/ask":
+		return s.askStartReply(ctx, userID)
+	case "/compatibility":
+		return s.compatibilityStartReply(ctx, userID)
+	}
 
 	return ReplyForCommand(text)
 }
@@ -108,6 +118,9 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 func (s *Service) cancelReply(userID int64) string {
 	if s.asks != nil && s.asks.cancel(userID) {
 		return "Вопрос отменён. Отправь /ask, чтобы задать новый вопрос."
+	}
+	if s.compat != nil && s.compat.cancel(userID) {
+		return "Расчёт совместимости отменён. Отправь /compatibility, чтобы начать заново."
 	}
 
 	return s.profiles.cancel(userID)
@@ -168,6 +181,39 @@ func (s *Service) askReply(ctx context.Context, userID int64, text string) (stri
 	}
 
 	return s.asks.handle(ctx, userID, birthProfile, text)
+}
+
+func (s *Service) compatibilityStartReply(ctx context.Context, userID int64) string {
+	_, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		return "Не смог загрузить профиль. Попробуй /compatibility ещё раз."
+	}
+	if !ok {
+		return "Сначала заполни анкету рождения через /profile, чтобы рассчитать совместимость."
+	}
+	if s.compat == nil {
+		return "Не смог начать расчёт совместимости. Попробуй позже."
+	}
+
+	return s.compat.start(userID)
+}
+
+func (s *Service) compatibilityReply(ctx context.Context, userID int64, text string) (string, bool) {
+	if s.compat == nil || !s.compat.active(userID) {
+		return "", false
+	}
+
+	birthProfile, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		s.compat.clear(userID)
+		return "Не смог загрузить профиль. Попробуй /compatibility ещё раз.", true
+	}
+	if !ok {
+		s.compat.clear(userID)
+		return "Сначала заполни анкету рождения через /profile, чтобы рассчитать совместимость.", true
+	}
+
+	return s.compat.handle(ctx, userID, birthProfile, text)
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
