@@ -61,6 +61,10 @@ func (m *profileManager) get(ctx context.Context, userID int64) (domainprofile.B
 	return m.store.Get(ctx, userID)
 }
 
+func (m *profileManager) currentDate() time.Time {
+	return m.now().UTC()
+}
+
 func (m *profileManager) handle(ctx context.Context, userID int64, text string) (string, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

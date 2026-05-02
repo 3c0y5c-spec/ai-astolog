@@ -68,7 +68,8 @@ curl http://localhost:8080/healthz
   3. birth city text
 - `/cancel` — cancel the active profile onboarding flow
 - `/chart` — basic natal chart MVP summary from the saved birth profile
-- `/daily`, `/ask` — planned next features
+- `/daily` — daily MVP forecast from the saved birth profile
+- `/ask` — planned next feature
 
 ## Checks
 
