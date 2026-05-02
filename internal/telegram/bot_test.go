@@ -86,3 +86,39 @@ func TestServiceChartUsesSavedProfile(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceDailyRequiresProfile(t *testing.T) {
+	service := &Service{
+		profiles: newProfileManager(domainprofile.NewMemoryStore()),
+	}
+
+	got := service.replyForText(context.Background(), 42, "/daily")
+	if !strings.Contains(got, "Сначала заполни анкету рождения через /profile") {
+		t.Fatalf("replyForText(/daily) = %q, want missing profile prompt", got)
+	}
+}
+
+func TestServiceDailyUsesSavedProfile(t *testing.T) {
+	store := domainprofile.NewMemoryStore()
+	service := &Service{
+		profiles: newProfileManager(store),
+	}
+	service.profiles.now = func() time.Time {
+		return time.Date(2026, time.May, 2, 12, 0, 0, 0, time.UTC)
+	}
+	err := store.Save(context.Background(), domainprofile.BirthProfile{
+		UserID:    42,
+		BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+		City:      "Москва",
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got := service.replyForText(context.Background(), 42, "/daily")
+	for _, want := range []string{"Ежедневный прогноз на 02.05.2026:", "Солнечный знак: Овен ♈", "Фокус дня:", "Совет:", "Вопрос для себя:"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("replyForText(/daily) = %q, want substring %q", got, want)
+		}
+	}
+}

@@ -78,6 +78,8 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 		return s.profiles.cancel(userID)
 	case "/chart":
 		return s.chartReply(ctx, userID)
+	case "/daily":
+		return s.dailyReply(ctx, userID)
 	}
 
 	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
@@ -97,6 +99,18 @@ func (s *Service) chartReply(ctx context.Context, userID int64) string {
 	}
 
 	return domainastrology.BuildNatalSummary(birthProfile)
+}
+
+func (s *Service) dailyReply(ctx context.Context, userID int64) string {
+	birthProfile, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		return "Не смог загрузить профиль. Попробуй /daily ещё раз."
+	}
+	if !ok {
+		return "Сначала заполни анкету рождения через /profile, чтобы получить ежедневный прогноз."
+	}
+
+	return domainastrology.BuildDailyForecast(birthProfile, s.profiles.currentDate())
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
