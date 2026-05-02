@@ -352,3 +352,146 @@ func TestServiceAskClearsSessionWhenProfileDisappears(t *testing.T) {
 		t.Fatalf("replyForText(after missing profile) = %q, want HelpText after cleared session", got)
 	}
 }
+
+func TestServiceCompatibilityRequiresProfile(t *testing.T) {
+	service := &Service{
+		profiles: newProfileManager(domainprofile.NewMemoryStore()),
+		compat:   newCompatibilityManager(),
+	}
+
+	got := service.replyForText(context.Background(), 42, "/compatibility")
+	if !strings.Contains(got, "Сначала заполни анкету рождения через /profile") {
+		t.Fatalf("replyForText(/compatibility) = %q, want missing profile prompt", got)
+	}
+}
+
+func TestServiceCompatibilityUsesSavedProfile(t *testing.T) {
+	store := domainprofile.NewMemoryStore()
+	service := &Service{
+		profiles: newProfileManager(store),
+		compat:   newCompatibilityManager(),
+	}
+	err := store.Save(context.Background(), domainprofile.BirthProfile{
+		UserID:    42,
+		BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+		City:      "Москва",
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got := service.replyForText(context.Background(), 42, "/compatibility")
+	if !strings.Contains(got, "Введи дату рождения партнёра") {
+		t.Fatalf("replyForText(/compatibility) = %q, want partner date prompt", got)
+	}
+
+	got = service.replyForText(context.Background(), 42, "31.02.1990")
+	if !strings.Contains(got, "Не смог распознать дату партнёра") {
+		t.Fatalf("replyForText(invalid partner date) = %q, want validation", got)
+	}
+
+	got = service.replyForText(context.Background(), 42, "02.10.1990")
+	for _, want := range []string{"Совместимость (MVP):", "Твой знак: Овен ♈", "Знак партнёра: Весы ♎", "Стихии: Огонь + Воздух"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("replyForText(partner date) = %q, want substring %q", got, want)
+		}
+	}
+}
+
+func TestServiceCompatibilityRoutesCommandsThroughActiveFlow(t *testing.T) {
+	store := domainprofile.NewMemoryStore()
+	service := &Service{
+		profiles: newProfileManager(store),
+		compat:   newCompatibilityManager(),
+	}
+	err := store.Save(context.Background(), domainprofile.BirthProfile{
+		UserID:    42,
+		BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+		City:      "Москва",
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	service.replyForText(context.Background(), 42, "/compatibility")
+	got := service.replyForText(context.Background(), 42, "/help")
+	if !strings.Contains(got, "Не смог распознать дату партнёра") {
+		t.Fatalf("replyForText(/help during compatibility) = %q, want partner date validation", got)
+	}
+}
+
+func TestServiceCancelStopsActiveCompatibilityFlow(t *testing.T) {
+	store := domainprofile.NewMemoryStore()
+	service := &Service{
+		profiles: newProfileManager(store),
+		compat:   newCompatibilityManager(),
+	}
+	err := store.Save(context.Background(), domainprofile.BirthProfile{
+		UserID:    42,
+		BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+		City:      "Москва",
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	service.replyForText(context.Background(), 42, "/compatibility")
+	got := service.replyForText(context.Background(), 42, "/cancel")
+	if !strings.Contains(got, "Расчёт совместимости отменён") {
+		t.Fatalf("replyForText(/cancel) = %q, want compatibility cancellation", got)
+	}
+
+	got = service.replyForText(context.Background(), 42, "02.10.1990")
+	if got != HelpText {
+		t.Fatalf("replyForText(partner date after cancel) = %q, want HelpText", got)
+	}
+}
+
+func TestServiceCompatibilityClearsSessionWhenProfileGetFails(t *testing.T) {
+	service := &Service{
+		profiles: newProfileManager(failingProfileStore{}),
+		compat:   newCompatibilityManager(),
+	}
+	userID := int64(42)
+	service.compat.start(userID)
+
+	got := service.replyForText(context.Background(), userID, "02.10.1990")
+	if !strings.Contains(got, "Не смог загрузить профиль") {
+		t.Fatalf("replyForText(partner date) = %q, want profile load error", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "03.10.1990")
+	if got != HelpText {
+		t.Fatalf("replyForText(after failure) = %q, want HelpText after cleared session", got)
+	}
+}
+
+func TestServiceCompatibilityClearsSessionWhenProfileDisappears(t *testing.T) {
+	store := &disappearingProfileStore{
+		profile: domainprofile.BirthProfile{
+			UserID:    42,
+			BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+			City:      "Москва",
+		},
+	}
+	service := &Service{
+		profiles: newProfileManager(store),
+		compat:   newCompatibilityManager(),
+	}
+	userID := int64(42)
+
+	got := service.replyForText(context.Background(), userID, "/compatibility")
+	if !strings.Contains(got, "Введи дату рождения партнёра") {
+		t.Fatalf("replyForText(/compatibility) = %q, want partner date prompt", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "02.10.1990")
+	if !strings.Contains(got, "Сначала заполни анкету рождения через /profile") {
+		t.Fatalf("replyForText(partner date) = %q, want missing profile prompt", got)
+	}
+
+	got = service.replyForText(context.Background(), userID, "03.10.1990")
+	if got != HelpText {
+		t.Fatalf("replyForText(after missing profile) = %q, want HelpText after cleared session", got)
+	}
+}

@@ -8,7 +8,7 @@ AI Astolog is a Telegram bot scaffold for an AI-powered astrology assistant.
 - Basic natal chart summary.
 - Daily personalized forecast.
 - Free-form AI astrologer questions.
-- Compatibility flow.
+- Compatibility flow by partner birth date.
 
 The service is intended for entertainment and esoteric self-reflection. It is not medical, legal, financial, or psychological advice.
 
@@ -71,10 +71,11 @@ curl http://localhost:8080/healthz
   1. birth date in `ДД.ММ.ГГГГ` or `YYYY-MM-DD`
   2. birth time in `ЧЧ:ММ`, or `нет` if unknown
   3. birth city text
-- `/cancel` — cancel the active profile onboarding flow
+- `/cancel` — cancel the active profile onboarding, AI question, or compatibility flow
 - `/chart` — basic natal chart MVP summary from the saved birth profile
 - `/daily` — daily MVP forecast from the saved birth profile
 - `/ask` — free-form AI astrologer question from the saved birth profile; falls back to local MVP interpretation when `AI_API_KEY` is not configured
+- `/compatibility` — relationship compatibility MVP from the saved birth profile and partner birth date
 
 ## Checks
 
