@@ -57,16 +57,7 @@ func (s *Service) handleCommand(ctx context.Context, b *bot.Bot, update *models.
 	}
 
 	message := update.Message
-	userID := userIDFromMessage(message)
-
-	switch message.Text {
-	case "/profile":
-		s.sendText(ctx, b, message.Chat.ID, s.profiles.start(userID))
-	case "/cancel":
-		s.sendText(ctx, b, message.Chat.ID, s.profiles.cancel(userID))
-	default:
-		s.sendText(ctx, b, message.Chat.ID, ReplyForCommand(message.Text))
-	}
+	s.sendText(ctx, b, message.Chat.ID, s.replyForText(ctx, userIDFromMessage(message), message.Text))
 }
 
 func (s *Service) handleMessage(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -75,12 +66,22 @@ func (s *Service) handleMessage(ctx context.Context, b *bot.Bot, update *models.
 	}
 
 	message := update.Message
-	if reply, handled := s.profiles.handle(ctx, userIDFromMessage(message), message.Text); handled {
-		s.sendText(ctx, b, message.Chat.ID, reply)
-		return
+	s.sendText(ctx, b, message.Chat.ID, s.replyForText(ctx, userIDFromMessage(message), message.Text))
+}
+
+func (s *Service) replyForText(ctx context.Context, userID int64, text string) string {
+	switch text {
+	case "/profile":
+		return s.profiles.start(userID)
+	case "/cancel":
+		return s.profiles.cancel(userID)
 	}
 
-	s.sendText(ctx, b, message.Chat.ID, HelpText)
+	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
+		return reply
+	}
+
+	return ReplyForCommand(text)
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {
