@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	domainprofile "github.com/3c0y5c-spec/ai-astolog/internal/domain/profile"
 )
@@ -48,5 +49,40 @@ func TestServiceCancelStopsActiveProfileFlow(t *testing.T) {
 	got = service.replyForText(ctx, userID, "24.03.1992")
 	if got != HelpText {
 		t.Fatalf("replyForText(date after cancel) = %q, want HelpText", got)
+	}
+}
+
+func TestServiceChartRequiresProfile(t *testing.T) {
+	service := &Service{
+		profiles: newProfileManager(domainprofile.NewMemoryStore()),
+	}
+
+	got := service.replyForText(context.Background(), 42, "/chart")
+	if !strings.Contains(got, "Сначала заполни анкету рождения через /profile") {
+		t.Fatalf("replyForText(/chart) = %q, want missing profile prompt", got)
+	}
+}
+
+func TestServiceChartUsesSavedProfile(t *testing.T) {
+	store := domainprofile.NewMemoryStore()
+	service := &Service{
+		profiles: newProfileManager(store),
+	}
+	birthTime := domainprofile.CivilTime{Hour: 8, Minute: 30}
+	err := store.Save(context.Background(), domainprofile.BirthProfile{
+		UserID:    42,
+		BirthDate: time.Date(1992, time.March, 24, 0, 0, 0, 0, time.UTC),
+		BirthTime: &birthTime,
+		City:      "Москва",
+	})
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	got := service.replyForText(context.Background(), 42, "/chart")
+	for _, want := range []string{"Натальная карта (MVP):", "Солнечный знак: Овен ♈", "Дата рождения: 24.03.1992", "Город рождения: Москва"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("replyForText(/chart) = %q, want substring %q", got, want)
+		}
 	}
 }

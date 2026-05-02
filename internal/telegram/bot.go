@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	domainastrology "github.com/3c0y5c-spec/ai-astolog/internal/domain/astrology"
 	domainprofile "github.com/3c0y5c-spec/ai-astolog/internal/domain/profile"
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -75,6 +76,8 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 		return s.profiles.start(userID)
 	case "/cancel":
 		return s.profiles.cancel(userID)
+	case "/chart":
+		return s.chartReply(ctx, userID)
 	}
 
 	if reply, handled := s.profiles.handle(ctx, userID, text); handled {
@@ -82,6 +85,18 @@ func (s *Service) replyForText(ctx context.Context, userID int64, text string) s
 	}
 
 	return ReplyForCommand(text)
+}
+
+func (s *Service) chartReply(ctx context.Context, userID int64) string {
+	birthProfile, ok, err := s.profiles.get(ctx, userID)
+	if err != nil {
+		return "Не смог загрузить профиль. Попробуй /chart ещё раз."
+	}
+	if !ok {
+		return "Сначала заполни анкету рождения через /profile, чтобы построить натальную карту."
+	}
+
+	return domainastrology.BuildNatalSummary(birthProfile)
 }
 
 func (s *Service) sendText(ctx context.Context, b *bot.Bot, chatID int64, text string) {

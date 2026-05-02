@@ -7,7 +7,6 @@ func TestReplyForCommand(t *testing.T) {
 		"/start":   StartText,
 		"/help":    HelpText,
 		"/profile": ProfileStartText,
-		"/chart":   ComingSoonText,
 		"/daily":   ComingSoonText,
 		"/ask":     ComingSoonText,
 		"hello":    HelpText,
